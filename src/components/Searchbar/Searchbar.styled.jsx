@@ -65,7 +65,7 @@ export const SearchInput = styled.input`
   }
 `;
 
-export const Btn = styled(ImSearch)`
+export const BtnIcon = styled(ImSearch)`
   width: 20px;
   height: 20px;
 `;
