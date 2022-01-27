@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import Searchbar from '../Searchbar/';
 import ImageGallery from '../ImageGallery';
@@ -9,151 +9,136 @@ import { Container, ErrorText } from './App.styled';
 import 'react-loader-spinner/dist/loader/css/react-spinner-loader.css';
 import { getImages } from '../../services/searchImagesApi';
 
-class App extends Component {
-  state = {
-    query: '',
-    images: [],
-    totalImages: 0,
-    activeImage: 0,
-    page: 1,
-    status: 'idle',
-    showModal: false,
-  };
+const ON_ERROR_TEXT = 'Something went wrong... Try again later!';
+const WARNING_TEXT = 'No images found! Try  another search keyword';
+const STATUS = {
+  IDLE: 'idle',
+  PENDING: 'pending',
+  REJECTED: 'rejected',
+  RESOLVED: 'resolved',
+};
 
-  async componentDidUpdate(_, prevStates) {
-    const { page, query } = this.state;
-    const { showNotification, handleApiResponse, handleError } = this;
+const toastOptions = {
+  style: {
+    padding: '18px',
+    color: '#D8000C',
+    background: '#FFBABA',
+  },
+};
 
-    if (prevStates.query !== query) {
-      this.setState({ status: 'pending', showModal: true, images: [] });
-      await getImages(query, page)
-        .then(({ data }) => {
-          if (data.hits.length === 0) {
-            showNotification('No images found! Try some other search keyword');
-            this.setState({ status: 'idle', showModal: false });
-            return;
-          }
+export default function App() {
+  const [query, setQuery] = useState('');
+  const [images, setImages] = useState([]);
+  const [totalImages, setTotalImages] = useState(0);
+  const [activeImage, setActiveImage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showModal, setShowModal] = useState(false);
+  const [status, setStatus] = useState(STATUS.IDLE);
+  const [loaded, setLoaded] = useState(false);
+  const firstPage = useRef(1);
 
-          handleApiResponse(data);
-        })
-        .catch(error => handleError(error));
-    } else if (prevStates.page !== page) {
-      await getImages(query, page)
-        .then(({ data }) => {
-          handleApiResponse(data);
-        })
-        .catch(error => handleError(error));
-    }
-  }
+  useEffect(() => {
+    const handleApiResponse = response => {
+      const filteredImages = [];
+      const { hits, totalHits } = response;
 
-  handleApiResponse = response => {
-    const filteredImages = [];
-    const { hits, totalHits } = response;
+      hits.forEach(({ tags, webformatURL, largeImageURL }) => {
+        let imageData = {
+          tags,
+          webformatURL,
+          largeImageURL,
+        };
+        filteredImages.push(imageData);
+      });
 
-    hits.forEach(({ tags, webformatURL, largeImageURL }) => {
-      let imageData = {
-        tags,
-        webformatURL,
-        largeImageURL,
-      };
-      filteredImages.push(imageData);
-    });
-
-    this.setState({
-      images: [...this.state.images, ...filteredImages],
-      totalImages: totalHits,
-      status: 'resolved',
-      showModal: false,
-    });
-  };
-
-  handleError = ({ message }) => {
-    console.log(message);
-    this.setState({ status: 'rejected' });
-  };
-
-  handleLoadMoreBtn = () => {
-    this.setState(({ page }) => ({ page: page + 1 }));
-  };
-
-  handleFormSubmit = query => {
-    this.setState({ query, page: 1 });
-  };
-
-  showNotification = text => {
-    toast.error(text);
-  };
-
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({ showModal: !showModal }));
-  };
-
-  handleImageClick = index => {
-    this.setState({ activeImage: index });
-    this.toggleModal();
-  };
-
-  renderPending = page => {
-    const { images, showModal } = this.state;
-
-    return (
-      <>
-        {page > 1 && <ImageGallery images={images} />}
-        {showModal && (
-          <Modal>
-            <Loader />
-          </Modal>
-        )}
-      </>
-    );
-  };
-
-  renderResolved = () => {
-    const { images, showModal, totalImages, activeImage } = this.state;
-    const { handleImageClick, handleLoadMoreBtn, toggleModal } = this;
-
-    return (
-      <>
-        <ImageGallery images={images} onClick={handleImageClick} />;
-        {totalImages !== images.length && (
-          <Button onClick={handleLoadMoreBtn} />
-        )}
-        {showModal && (
-          <Modal onClose={toggleModal}>
-            <img src={images[activeImage].largeImageURL} alt="hello" />
-          </Modal>
-        )}
-      </>
-    );
-  };
-
-  render() {
-    const { handleFormSubmit, renderPending, renderResolved } = this;
-    const { status, page } = this.state;
-
-    const toastOptions = {
-      style: {
-        padding: '18px',
-        color: '#D8000C',
-        background: '#FFBABA',
-      },
+      firstPage.current === currentPage
+        ? setImages(filteredImages)
+        : setImages([...images, ...filteredImages]);
+      setTotalImages(totalHits);
+      setShowModal(false);
+      setStatus(STATUS.RESOLVED);
     };
 
-    return (
-      <Container>
-        <Toaster toastOptions={toastOptions} />
-        <Searchbar onSubmit={handleFormSubmit} />
+    if (!query || loaded) {
+      return;
+    }
 
-        {status === 'pending' && renderPending(page)}
+    firstPage.current === currentPage && setImages([]);
+    setStatus(STATUS.PENDING);
+    setShowModal(true);
 
-        {status === 'rejected' && (
-          <ErrorText>Something went wrong... Try again later!</ErrorText>
-        )}
+    getImages(query, currentPage)
+      .then(({ data }) => {
+        if (data.hits.length === 0) {
+          toast.error(WARNING_TEXT);
+          setShowModal(false);
+          setStatus(STATUS.IDLE);
+          return;
+        }
+        handleApiResponse(data);
+      })
+      .catch(error => handleError(error));
+    setLoaded(true);
+  }, [currentPage, images, loaded, query]);
 
-        {status === 'resolved' && renderResolved()}
-      </Container>
-    );
-  }
+  const handleError = ({ message }) => {
+    console.log(message);
+    setStatus(STATUS.REJECTED);
+  };
+
+  const handleLoadMoreBtn = () => {
+    setCurrentPage(currentPage => currentPage + 1);
+    setLoaded(false);
+  };
+
+  const handleFormSubmit = query => {
+    setQuery(query);
+    setCurrentPage(1);
+    setLoaded(false);
+  };
+
+  const toggleModal = () => {
+    setShowModal(showModal => !showModal);
+  };
+
+  const handleImageClick = index => {
+    setActiveImage(index);
+    toggleModal();
+  };
+
+  const renderPending = currentPage => (
+    <>
+      {currentPage > 1 && <ImageGallery images={images} />}
+      {showModal && (
+        <Modal>
+          <Loader />
+        </Modal>
+      )}
+    </>
+  );
+
+  const renderResolved = () => (
+    <>
+      <ImageGallery images={images} onClick={handleImageClick} />;
+      {totalImages !== images.length && <Button onClick={handleLoadMoreBtn} />}
+      {showModal && (
+        <Modal onClose={toggleModal}>
+          <img
+            src={images[activeImage].largeImageURL}
+            alt={images[activeImage].tags}
+          />
+        </Modal>
+      )}
+    </>
+  );
+
+  return (
+    <Container>
+      <Toaster toastOptions={toastOptions} />
+      <Searchbar onSubmit={handleFormSubmit} />
+      {status === STATUS.PENDING && renderPending(currentPage)}
+      {status === STATUS.REJECTED && <ErrorText>{ON_ERROR_TEXT}</ErrorText>}
+      {status === STATUS.RESOLVED && renderResolved()}
+    </Container>
+  );
 }
-
-export default App;
