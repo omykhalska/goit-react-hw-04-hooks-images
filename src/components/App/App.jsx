@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import Searchbar from '../Searchbar/';
 import ImageGallery from '../ImageGallery';
@@ -11,6 +11,7 @@ import { getImages } from '../../services/searchImagesApi';
 
 const ON_ERROR_TEXT = 'Something went wrong... Try again later!';
 const WARNING_TEXT = 'No images found! Try  another search keyword';
+const FIRST_PAGE = 1;
 const STATUS = {
   IDLE: 'idle',
   PENDING: 'pending',
@@ -35,56 +36,49 @@ export default function App() {
   const [showModal, setShowModal] = useState(false);
   const [status, setStatus] = useState(STATUS.IDLE);
   const [loaded, setLoaded] = useState(false);
-  const firstPage = useRef(1);
 
   useEffect(() => {
-    const handleApiResponse = response => {
-      const filteredImages = [];
-      const { hits, totalHits } = response;
-
-      hits.forEach(({ tags, webformatURL, largeImageURL }) => {
-        let imageData = {
-          tags,
-          webformatURL,
-          largeImageURL,
-        };
-        filteredImages.push(imageData);
-      });
-
-      firstPage.current === currentPage
-        ? setImages(filteredImages)
-        : setImages([...images, ...filteredImages]);
-      setTotalImages(totalHits);
-      setShowModal(false);
-      setStatus(STATUS.RESOLVED);
-    };
-
     if (!query || loaded) {
       return;
     }
 
-    firstPage.current === currentPage && setImages([]);
+    FIRST_PAGE === currentPage && setImages([]);
     setStatus(STATUS.PENDING);
     setShowModal(true);
 
     getImages(query, currentPage)
-      .then(({ data }) => {
-        if (data.hits.length === 0) {
+      .then(({ data: { hits, totalHits } }) => {
+        if (hits.length === 0) {
           toast.error(WARNING_TEXT);
           setShowModal(false);
           setStatus(STATUS.IDLE);
           return;
         }
-        handleApiResponse(data);
+
+        const filteredImages = [];
+        hits.forEach(({ tags, webformatURL, largeImageURL }) => {
+          let imageData = {
+            tags,
+            webformatURL,
+            largeImageURL,
+          };
+          filteredImages.push(imageData);
+        });
+
+        FIRST_PAGE === currentPage
+          ? setImages(filteredImages)
+          : setImages([...images, ...filteredImages]);
+        setTotalImages(totalHits);
+        setShowModal(false);
+        setStatus(STATUS.RESOLVED);
       })
-      .catch(error => handleError(error));
+      .catch(({ message }) => {
+        console.log(message);
+        setStatus(STATUS.REJECTED);
+      });
+
     setLoaded(true);
   }, [currentPage, images, loaded, query]);
-
-  const handleError = ({ message }) => {
-    console.log(message);
-    setStatus(STATUS.REJECTED);
-  };
 
   const handleLoadMoreBtn = () => {
     setCurrentPage(currentPage => currentPage + 1);
