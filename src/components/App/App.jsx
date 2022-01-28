@@ -86,7 +86,7 @@ export default function App() {
   };
 
   const handleFormSubmit = query => {
-    setQuery(query);
+    setQuery(query.trim());
     setCurrentPage(1);
     setLoaded(false);
   };
