@@ -67,7 +67,7 @@ export default function App() {
 
         FIRST_PAGE === currentPage
           ? setImages(filteredImages)
-          : setImages([...images, ...filteredImages]);
+          : setImages(prevImages => [...prevImages, ...filteredImages]);
         setTotalImages(totalHits);
         setShowModal(false);
         setStatus(STATUS.RESOLVED);
@@ -78,7 +78,7 @@ export default function App() {
       });
 
     setLoaded(true);
-  }, [currentPage, images, loaded, query]);
+  }, [currentPage, loaded, query]);
 
   const handleLoadMoreBtn = () => {
     setCurrentPage(currentPage => currentPage + 1);
