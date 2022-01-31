@@ -35,10 +35,9 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [status, setStatus] = useState(STATUS.IDLE);
-  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!query || loaded) {
+    if (!query) {
       return;
     }
 
@@ -76,19 +75,15 @@ export default function App() {
         console.log(message);
         setStatus(STATUS.REJECTED);
       });
-
-    setLoaded(true);
-  }, [currentPage, loaded, query]);
+  }, [currentPage, query]);
 
   const handleLoadMoreBtn = () => {
     setCurrentPage(currentPage => currentPage + 1);
-    setLoaded(false);
   };
 
   const handleFormSubmit = query => {
     setQuery(query.trim());
     setCurrentPage(1);
-    setLoaded(false);
   };
 
   const toggleModal = () => {
